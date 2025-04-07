@@ -50,7 +50,7 @@ class OpenAIClient:
         return self._prompt
 
     # Set Max tokens for GPT 3.5
-    def analyze_text(self, messages, max_tokens=600):
+    def analyze_text(self, messages, max_tokens=1500):
         
         try:
             response = self.client.chat.completions.create(
