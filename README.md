@@ -1,16 +1,8 @@
 # 📝 STAR WRITING
 
-SmartText Generator is a Streamlit web app that allows users to generate various types of written content (essays, reports, emails, blog articles) based on user-provided keywords, writing style, tone, and word count.
+STAR WRITING is a Streamlit web app that helps users to write content by using the STAR method.
+It uses OpenAI's GPT model (via API) to generate general questions or interview questions, and rewrite your answer effectively.
 
-It uses OpenAI's GPT model (via API) to produce informative, structured, and keyword-integrated content.
-
----
-
-## 🚀 Features
-
-- 🔤 Keyword-based content generation  
-
----
 
 ## 🛠️ Setup
 
