@@ -1,0 +1,106 @@
+const fs = require('fs');
+const csv = require('csv-parser');
+const axios = require('axios');
+
+// --- Configuration ---
+const CONFIG = {
+  CSV_FILE: 'flows.csv',
+  OUTPUT_FILE: 'results.txt',
+  API_BASE_URL: 'https://api.yourdomain.com/v1', // Update with your actual URL
+  AUTH_TOKEN: 'Bearer YOUR_TOKEN_HERE',          // Update with your actual token
+  MAX_RECORDS: 60,                               // Limit to 60 records as requested
+  DELAY_MS: 1000                                 // 1000ms = 1 request per second (60/min)
+};
+
+/**
+ * Utility to pause execution
+ * @param {number} ms 
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Main logic to process CSV and fetch API data
+ */
+async function processFlows() {
+  const records = [];
+
+  // 1. Load CSV data into memory (Promisified for safety)
+  console.log(`Reading ${CONFIG.CSV_FILE}...`);
+  await new Promise((resolve, reject) => {
+    fs.createReadStream(CONFIG.CSV_FILE)
+      .pipe(csv())
+      .on('data', (row) => records.push(row))
+      .on('error', (err) => reject(new Error(`CSV Read Error: ${err.message}`)))
+      .on('end', resolve);
+  });
+
+  if (records.length === 0) {
+    console.warn('Warning: CSV file is empty or could not be parsed.');
+    return;
+  }
+
+  const writeStream = fs.createWriteStream(CONFIG.OUTPUT_FILE);
+  const totalToProcess = Math.min(records.length, CONFIG.MAX_RECORDS);
+  
+  console.log(`Successfully loaded ${records.length} records. Processing top ${totalToProcess}...`);
+
+  // 2. Process records sequentially to respect rate limits
+  for (let i = 0; i < totalToProcess; i++) {
+    const { entrypointID, flowID, flowName } = records[i];
+
+    try {
+      console.log(`[${i + 1}/${totalToProcess}] Fetching: ${flowName}`);
+
+      const response = await axios.get(
+        `${CONFIG.API_BASE_URL}/entry-points/${entrypointID}/flows/${flowID}/contents`,
+        { 
+          headers: { 'Authorization': CONFIG.AUTH_TOKEN },
+          timeout: 10000 // 10-second timeout safety net
+        }
+      );
+
+      // Extract content (assuming response.data is the content you want)
+      const content = typeof response.data === 'object' 
+        ? JSON.stringify(response.data) 
+        : response.data;
+
+      // 3. Write result to text file
+      writeStream.write(`${flowID} and ${flowName} ----- ${content}\n`);
+
+    } catch (error) {
+      const errorMsg = error.response 
+        ? `API Status ${error.response.status}` 
+        : error.message;
+        
+      console.error(`[${i + 1}/${totalToProcess}] Failed: ${flowName} (${errorMsg})`);
+      writeStream.write(`${flowID} and ${flowName} ----- ERROR: ${errorMsg}\n`);
+    }
+
+    // 4. Rate Limit Guard: Wait 1 second before next iteration
+    if (i < totalToProcess - 1) {
+      await sleep(CONFIG.DELAY_MS);
+    }
+  }
+
+  writeStream.end();
+}
+
+// --- Execution & Safety Wrapper ---
+console.log('Starting application...');
+
+processFlows()
+  .then(() => {
+    console.log('✅ Success: All tasks completed. Check results.txt');
+    process.exit(0); // Exit with "Success" code
+  })
+  .catch((err) => {
+    console.error('❌ Fatal Error during execution:');
+    console.error(err.message);
+    process.exit(1); // Exit with "General Error" code
+  });
+
+// Catch-all for any unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
