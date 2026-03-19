@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Procedure Generator v14</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .flex-container { display: flex; gap: 30px; margin-top: 20px; align-items: flex-start; }
+        .input-side { flex: 1; position: sticky; top: 20px; }
+        .setup-side { flex: 1.5; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; max-height: 75vh; overflow-y: auto; }
+        
+        textarea { width: 100%; height: 450px; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-family: 'Consolas', monospace; font-size: 13px; box-sizing: border-box; }
+        .step-row { margin-bottom: 12px; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 6px; }
+        .step-header { font-weight: bold; color: #007bff; margin-bottom: 5px; display: block; font-size: 14px; }
+        
+        input[type="text"] { width: 45px; padding: 5px; text-align: center; border: 1px solid #007bff; border-radius: 4px; font-weight: bold; }
+        .tag { color: #e83e8c; font-family: monospace; font-size: 12px; font-weight: bold;}
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .gen-btn { background: #28a745; color: white; flex: 2; font-size: 16px; }
+        .gen-btn:hover { background: #218838; }
+        .clear-btn { background: #6c757d; color: white; }
+        .copy-btn { background: #17a2b8; color: white; }
+        
+        .result-area { margin-top: 30px; border-top: 3px double #007bff; padding-top: 20px; }
+        #html-output { background: #1e1e1e; color: #dcdcdc; height: 250px; width: 100%; border-radius: 8px; cursor: text; }
+        
+        .preview-pane { border: 1px solid #ddd; padding: 20px; margin-top: 10px; background: #fff; border-radius: 8px; }
+        .preview-pane h3 { color: #d63031; border-left: 5px solid #d63031; padding-left: 10px; margin: 10px 0; font-size: 1.1em; }
+        .preview-pane p { margin: 5px 0 10px 0; color: #555; font-style: italic; }
+        .preview-pane ol { padding-left: 30px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 Procedure Generator (20 Steps + P Tag)</h2>
+    
+    <div class="flex-container">
+        <div class="input-side">
+            <strong>1. Paste Source Text</strong>
+            <textarea id="raw-text">1: Check if the green button works.
+2: Press the button and watch the indicator light.
+3: If Yes: Continue to the next screen.
+4: If No: Replace the button battery.
+5: Verify if the Wi-Fi icon is blinking.
+6: Connection might take up to 30 seconds.
+7: If Yes: Wait for the connection to stabilize.
+8: If No: Reset the router manually.</textarea>
+        </div>
+
+        <div class="setup-side">
+            <strong>2. Map Line Numbers</strong>
+            <div id="mapping-area"></div>
+            <div class="btn-group">
+                <button class="gen-btn" onclick="generateHTML()">GENERATE HTML</button>
+                <button class="clear-btn" onclick="clearNumbers()">RESET BOXES</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="result-area">
+        <div style="display:flex; justify-content: space-between; align-items: center;">
+            <strong>3. Result HTML Code</strong>
+            <button class="copy-btn" onclick="copyCode()" style="max-width: 150px; margin-bottom:5px;">COPY CODE</button>
+        </div>
+        <textarea id="html-output" readonly></textarea>
+        
+        <strong>Visual Preview</strong>
+        <div id="preview" class="preview-pane"></div>
+    </div>
+</div>
+
+<script>
+    const mappingArea = document.getElementById('mapping-area');
+    for (let i = 1; i <= 20; i++) {
+        const row = document.createElement('div');
+        row.className = 'step-row';
+        row.innerHTML = `
+            <span class="step-header">STEP ${i}</span>
+            <div><span class="tag">&lt;h3&gt;</span> Title Line #: <input type="text" class="num-input" id="h_${i}"></div>
+            <div style="margin-top:5px;"><span class="tag">&lt;p&gt;</span> Desc Line #: <input type="text" class="num-input" id="p_${i}"></div>
+            <div style="margin-left:20px; margin-top:5px; border-left:2px solid #ddd; padding-left:10px;">
+                <span class="tag">&lt;ul&gt;</span><br>
+                <span class="tag">&lt;li&gt;</span> Yes Line #: <input type="text" class="num-input" id="y_${i}"> 
+                <span class="tag">&lt;li&gt;</span> No Line #: <input type="text" class="num-input" id="n_${i}">
+            </div>
+        `;
+        mappingArea.appendChild(row);
+    }
+
+    function generateHTML() {
+        const rawLines = document.getElementById('raw-text').value.split('\n');
+        const cleanLines = rawLines.map(line => line.replace(/^\d+[:：]\s*/, '').trim());
+
+        const getLine = (id) => {
+            const val = document.getElementById(id).value;
+            if (!val || isNaN(val)) return null;
+            return cleanLines[parseInt(val) - 1] || "";
+        };
+
+        let stepsHtml = "";
+        for (let i = 1; i <= 20; i++) {
+            const h = getLine(`h_${i}`);
+            const p = getLine(`p_${i}`);
+            const y = getLine(`y_${i}`);
+            const n = getLine(`n_${i}`);
+
+            if (h) {
+                let s = `  <li>\n    <h3>${h}</h3>\n`;
+                if (p) s += `    <p>${p}</p>\n`;
+                if (y || n) {
+                    s += `    <ul>\n`;
+                    if (y) s += `      <li>${y}</li>\n`;
+                    if (n) s += `      <li>${n}</li>\n`;
+                    s += `    </ul>\n`;
+                }
+                s += `  </li>\n`;
+                stepsHtml += s;
+            }
+        }
+
+        const final = `<ol>\n${stepsHtml}</ol>`;
+        document.getElementById('html-output').value = final;
+        document.getElementById('preview').innerHTML = final;
+    }
+
+    function clearNumbers() {
+        if(confirm("Clear all line numbers?")) {
+            document.querySelectorAll('.num-input').forEach(input => input.value = "");
+        }
+    }
+
+    function copyCode() {
+        const output = document.getElementById('html-output');
+        if (!output.value) return;
+        output.select();
+        document.execCommand('copy');
+        alert("HTML Code copied to clipboard!");
+    }
+</script>
+</body>
+</html>
