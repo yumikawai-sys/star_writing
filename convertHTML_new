@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>H3 & P Tag Generator</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #f0f2f5; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .flex-container { display: flex; gap: 30px; margin-top: 20px; }
+        .input-side { flex: 1; position: sticky; top: 20px; }
+        .setup-side { flex: 1; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; max-height: 75vh; overflow-y: auto; }
+        
+        textarea { width: 100%; height: 400px; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-family: monospace; font-size: 13px; box-sizing: border-box; }
+        .step-row { margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid #ddd; border-radius: 6px; border-left: 5px solid #007bff; }
+        .step-header { font-weight: bold; color: #007bff; margin-bottom: 8px; display: block; }
+        
+        input[type="text"] { width: 45px; padding: 5px; text-align: center; border: 1px solid #007bff; border-radius: 4px; font-weight: bold; }
+        .tag { color: #e83e8c; font-family: monospace; font-size: 12px; font-weight: bold; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .gen-btn { background: #28a745; color: white; }
+        .clear-btn { background: #6c757d; color: white; }
+        .copy-btn { background: #17a2b8; color: white; }
+
+        #html-output { background: #1e1e1e; color: #dcdcdc; height: 200px; width: 100%; margin-top: 10px; font-family: monospace; }
+        .preview-pane { border: 1px solid #ddd; padding: 20px; margin-top: 10px; background: #fff; }
+        .preview-pane h3 { color: #d63031; margin: 15px 0 5px 0; }
+        .preview-pane p { margin: 0 0 10px 0; color: #444; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 H3 & Double-P Generator</h2>
+    
+    <div class="flex-container">
+        <div class="input-side">
+            <strong>1. Paste Text (Split by "1:", "2:")</strong>
+            <textarea id="raw-text">1: First Title 2: First Description 3: Second Description 4: Second Title 5: More Details 6: Even More Details</textarea>
+        </div>
+
+        <div class="setup-side">
+            <strong>2. Map Block Numbers</strong>
+            <div id="mapping-area"></div>
+            <div class="btn-group">
+                <button class="gen-btn" onclick="generateHTML()">GENERATE HTML</button>
+                <button class="clear-btn" onclick="clearNumbers()">RESET</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="result-area">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+            <strong>3. Result HTML</strong>
+            <button class="copy-btn" onclick="copyCode()">COPY CODE</button>
+        </div>
+        <textarea id="html-output" readonly></textarea>
+        
+        <strong>Visual Preview</strong>
+        <div id="preview" class="preview-pane"></div>
+    </div>
+</div>
+
+<script>
+    // Build 20 step blocks
+    const mappingArea = document.getElementById('mapping-area');
+    for (let i = 1; i <= 20; i++) {
+        const row = document.createElement('div');
+        row.className = 'step-row';
+        row.innerHTML = `
+            <span class="step-header">BLOCK ${i}</span>
+            <div><span class="tag">&lt;h3&gt;</span> Text #: <input type="text" class="num-input" id="h_${i}"></div>
+            <div><span class="tag">&lt;p&gt; (1)</span> Text #: <input type="text" class="num-input" id="p1_${i}"></div>
+            <div><span class="tag">&lt;p&gt; (2)</span> Text #: <input type="text" class="num-input" id="p2_${i}"></div>
+        `;
+        mappingArea.appendChild(row);
+    }
+
+    function generateHTML() {
+        const text = document.getElementById('raw-text').value;
+        
+        // Split by pattern like "1:" or "20:" and keep the remainder
+        // We use a regex to split and filter out empty strings
+        const parts = text.split(/\d+[:：]\s*/).filter(p => p.trim() !== "");
+
+        const getPart = (id) => {
+            const val = document.getElementById(id).value;
+            if (!val || isNaN(val)) return null;
+            return parts[parseInt(val) - 1] ? parts[parseInt(val) - 1].trim() : null;
+        };
+
+        let finalHTML = "";
+        for (let i = 1; i <= 20; i++) {
+            const h = getPart(`h_${i}`);
+            const p1 = getPart(`p1_${i}`);
+            const p2 = getPart(`p2_${i}`);
+
+            if (h) {
+                finalHTML += `<h3>${h}</h3>\n`;
+                if (p1) finalHTML += `<p>${p1}</p>\n`;
+                if (p2) finalHTML += `<p>${p2}</p>\n`;
+                finalHTML += `\n`; // Add space between blocks
+            }
+        }
+
+        document.getElementById('html-output').value = finalHTML.trim();
+        document.getElementById('preview').innerHTML = finalHTML;
+    }
+
+    function clearNumbers() {
+        if(confirm("Reset all boxes?")) {
+            document.querySelectorAll('.num-input').forEach(input => input.value = "");
+        }
+    }
+
+    function copyCode() {
+        const output = document.getElementById('html-output');
+        if (!output.value) return;
+        output.select();
+        document.execCommand('copy');
+        alert("Copied!");
+    }
+</script>
+</body>
+</html>
