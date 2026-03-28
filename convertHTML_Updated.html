@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Visual Procedure Builder v20</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
+        .container { max-width: 1200px; margin: auto; display: flex; gap: 20px; align-items: flex-start; }
+        
+        /* Left: Inventory */
+        .source-panel { flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 20px; max-height: 95vh; overflow-y: auto; }
+        #raw-input { width: 100%; height: 80px; margin-bottom: 10px; font-family: monospace; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .section-label { font-size: 12px; font-weight: bold; color: #007bff; margin: 15px 0 5px 0; border-bottom: 1px solid #eee; display: block; }
+        
+        .part-item { background: #e3f2fd; border: 1px solid #90caf9; padding: 10px; margin-bottom: 8px; border-radius: 4px; cursor: grab; font-size: 13px; transition: 0.2s; word-break: break-all; }
+        .part-item:hover { background: #bbdefb; border-color: #007bff; }
+        .static-item { background: #fff3e0; border-color: #ffe0b2; color: #e65100; font-weight: bold; }
+
+        /* Middle: Construction Area */
+        .mapping-panel { flex: 1.5; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .step-block { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fafafa; border-left: 5px solid #007bff; position: relative; }
+        .slot { min-height: 35px; border: 1px dashed #bbb; background: #fff; margin: 8px 0; padding: 8px; border-radius: 4px; font-size: 14px; color: #999; display: flex; align-items: center; }
+        .slot.drag-over { background: #e1f5fe; border-color: #007bff; }
+        .slot.filled { border: 1px solid #28a745; background: #f6fff8; color: #333; font-weight: 500; cursor: pointer; }
+        .label { font-size: 11px; font-weight: bold; color: #e83e8c; margin-right: 10px; min-width: 30px; border: 1px solid #e83e8c; padding: 2px 4px; border-radius: 3px; }
+
+        /* Add Button */
+        .add-block-btn { width: 100%; padding: 15px; border: 2px dashed #007bff; background: #f0f7ff; color: #007bff; font-weight: bold; cursor: pointer; border-radius: 8px; margin-bottom: 20px; font-size: 16px; }
+        .add-block-btn:hover { background: #e1f0ff; }
+
+        /* Results Area */
+        #html-output { width: 100%; height: 150px; background: #2d3436; color: #fab1a0; font-family: monospace; padding: 10px; margin: 10px 0; border-radius: 6px; box-sizing: border-box; }
+        .preview-pane { border: 1px solid #ddd; padding: 20px; background: #fff; border-radius: 8px; }
+        .preview-pane h3 { color: #d63031; border-left: 5px solid #d63031; padding-left: 10px; margin: 15px 0 5px 0; }
+        .preview-pane p { margin: 0 0 10px 0; color: #444; }
+
+        .btn-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        button.action-btn { flex: 1; padding: 12px; font-weight: bold; cursor: pointer; border-radius: 6px; border: none; }
+        .gen-btn { background: #28a745; color: white; }
+        .copy-btn { background: #17a2b8; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="source-panel">
+        <strong>1. Parts Inventory</strong>
+        
+        <span class="section-label">📌 Common Phrases (Permanent)</span>
+        <div id="static-parts">
+            <div class="part-item static-item" draggable="true" ondragstart="startStaticDrag(event)">If Yes: Go to Step</div>
+            <div class="part-item static-item" draggable="true" ondragstart="startStaticDrag(event)">If No: Go to Step</div>
+            <div class="part-item static-item" draggable="true" ondragstart="startStaticDrag(event)">Refer to ""</div>
+        </div>
+
+        <span class="section-label">📜 Text Data (One-time Use)</span>
+        <textarea id="raw-input" placeholder="Paste: 1: Title 2: Desc..." oninput="parseText()"></textarea>
+        <div id="parts-list"></div>
+    </div>
+
+    <div class="mapping-panel">
+        <strong>2. Construction Area</strong>
+        <div id="builder-area"></div>
+        <button class="add-block-btn" onclick="addBlock()">＋ Add New BLOCK</button>
+
+        <div class="btn-group">
+            <button class="action-btn gen-btn" onclick="generate()">GENERATE HTML</button>
+            <button class="action-btn copy-btn" onclick="copyCode()">COPY CODE</button>
+            <button class="action-btn" style="background:#6c757d; color:white;" onclick="location.reload()">RESET ALL</button>
+        </div>
+
+        <div class="output-area">
+            <strong>3. Results & Preview</strong>
+            <textarea id="html-output" readonly placeholder="Result HTML will appear here..."></textarea>
+            <div id="preview" class="preview-pane"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let blockCount = 0;
+    for (let i = 0; i < 5; i++) { addBlock(); }
+
+    function addBlock() {
+        blockCount++;
+        const div = document.createElement('div');
+        div.className = 'step-block';
+        div.innerHTML = `
+            <span style="font-weight:bold; color:#007bff;">BLOCK ${blockCount}</span>
+            <div class="slot" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="clearDrop(event)" onclick="returnItem(this)" data-type="h3"><span class="label">H3</span> Drop title here...</div>
+            <div class="slot" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="clearDrop(event)" onclick="returnItem(this)" data-type="p"><span class="label">P1</span> Drop description here...</div>
+            <div class="slot" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="clearDrop(event)" onclick="returnItem(this)" data-type="p"><span class="label">P2</span> Drop description here...</div>
+        `;
+        document.getElementById('builder-area').appendChild(div);
+    }
+
+    function parseText() {
+        const text = document.getElementById('raw-input').value;
+        const parts = text.split(/(?<=^|\s)\d+[:：](?=\s|$)/).filter(p => p.trim() !== "");
+        const list = document.getElementById('parts-list');
+        list.innerHTML = "";
+        parts.forEach((p, index) => {
+            const div = document.createElement('div');
+            div.className = 'part-item';
+            div.draggable = true;
+            div.id = 'dynamic-' + index;
+            div.innerText = p.trim();
+            div.ondragstart = (e) => {
+                e.dataTransfer.setData("id", e.target.id);
+                e.dataTransfer.setData("content", e.target.innerText);
+                e.dataTransfer.setData("isStatic", "false");
+            };
+            list.appendChild(div);
+        });
+    }
+
+    function startStaticDrag(e) {
+        e.dataTransfer.setData("content", e.target.innerText);
+        e.dataTransfer.setData("isStatic", "true");
+    }
+
+    function allowDrop(e) { e.preventDefault(); e.target.closest('.slot').classList.add('drag-over'); }
+    function clearDrop(e) { e.target.closest('.slot').classList.remove('drag-over'); }
+
+    function drop(e) {
+        e.preventDefault();
+        const slot = e.target.closest('.slot');
+        slot.classList.remove('drag-over');
+        const content = e.dataTransfer.getData("content");
+        const isStatic = e.dataTransfer.getData("isStatic") === "true";
+        const id = e.dataTransfer.getData("id");
+
+        if (slot) {
+            if(slot.classList.contains('filled')) returnItem(slot);
+            slot.innerHTML = `<span class="label">${slot.dataset.type.toUpperCase()}</span> ${content}`;
+            slot.classList.add('filled');
+            slot.dataset.content = content;
+            slot.dataset.isStatic = isStatic;
+            if (!isStatic) {
+                slot.dataset.originId = id;
+                document.getElementById(id).style.display = 'none';
+            }
+        }
+    }
+
+    function returnItem(slot) {
+        if (!slot.classList.contains('filled')) return;
+        if (slot.dataset.isStatic === "false") {
+            const part = document.getElementById(slot.dataset.originId);
+            if (part) part.style.display = 'block';
+        }
+        slot.classList.remove('filled');
+        slot.innerHTML = `<span class="label">${slot.dataset.type.toUpperCase()}</span>`;
+        delete slot.dataset.content;
+    }
+
+    function generate() {
+        const blocks = document.querySelectorAll('.step-block');
+        let html = "";
+        let stepCounter = 1; // Start counting steps
+
+        blocks.forEach(block => {
+            const h3 = block.querySelector('[data-type="h3"]').dataset.content;
+            const p1 = block.querySelectorAll('[data-type="p"]')[0].dataset.content;
+            const p2 = block.querySelectorAll('[data-type="p"]')[1].dataset.content;
+
+            if (h3) {
+                // Prepend "Step X: " to the H3 content
+                html += `<h3>Step ${stepCounter}: ${h3}</h3>\n`;
+                if (p1) html += `<p>${p1}</p>\n`;
+                if (p2) html += `<p>${p2}</p>\n`;
+                html += `\n`;
+                stepCounter++; // Increment for the next filled step
+            }
+        });
+        document.getElementById('html-output').value = html.trim();
+        document.getElementById('preview').innerHTML = html || '<p style="color:#999;">Preview will appear here...</p>';
+    }
+
+    function copyCode() {
+        const out = document.getElementById('html-output');
+        if (!out.value) return;
+        out.select();
+        document.execCommand('copy');
+        alert("HTML Code Copied!");
+    }
+</script>
+</body>
+</html>
