@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Visual Procedure Builder v28</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: #f0f2f5; color: #333; }
+        .container { max-width: 1240px; margin: auto; }
+        
+        /* 1. JSON Input Panel */
+        .json-panel { 
+            background: #fff; padding: 20px; border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px;
+            border-top: 4px solid #6c5ce7;
+        }
+        #json-paster { width: 100%; height: 80px; font-family: monospace; font-size: 12px; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+
+        .main-layout { display: flex; gap: 20px; }
+        
+        /* 2. Inventory Panel */
+        .source-panel { flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); height: 85vh; overflow-y: auto; position: sticky; top: 20px; }
+        .section-label { font-size: 11px; font-weight: bold; color: #007bff; margin: 15px 0 5px 0; border-bottom: 1px solid #eee; display: block; text-transform: uppercase; }
+        
+        .part-item { background: #e3f2fd; border: 1px solid #90caf9; padding: 10px; margin-bottom: 8px; border-radius: 4px; cursor: grab; font-size: 13px; word-break: break-word; }
+        .static-item { background: #fff3e0; border-color: #ffe0b2; color: #e65100; font-weight: bold; }
+        .part-item:hover { opacity: 0.8; }
+
+        /* 3. Builder Panel */
+        .mapping-panel { flex: 1.5; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .step-block { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fafafa; border-left: 5px solid #007bff; }
+        .slot { min-height: 40px; border: 1px dashed #bbb; background: #fff; margin: 8px 0; padding: 8px; border-radius: 4px; display: flex; align-items: center; font-size: 14px; }
+        .slot.filled { border: 1px solid #28a745; background: #f6fff8; font-weight: 500; cursor: pointer; }
+        .label { font-size: 10px; font-weight: bold; color: #e83e8c; border: 1px solid #e83e8c; padding: 2px 4px; border-radius: 3px; margin-right: 10px; }
+
+        button { padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 5px; border: none; }
+        .btn-primary { background: #6c5ce7; color: white; }
+        .btn-add { width: 100%; background: #f0f7ff; color: #007bff; border: 2px dashed #007bff; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="json-panel">
+        <strong>1. Data Import</strong>
+        <textarea id="json-paster" placeholder="Paste JSON here..."></textarea>
+        <button class="btn-primary" onclick="importJson()">PROCESS & RE-SORT CARDS</button>
+    </div>
+
+    <div class="main-layout">
+        <div class="source-panel">
+            <strong>2. Card Inventory</strong>
+            
+            <span class="section-label">📌 Common Phrases</span>
+            <div id="static-list">
+                <div class="part-item static-item" draggable="true" ondragstart="drag(event)" id="s1">If Yes: Go to Step</div>
+                <div class="part-item static-item" draggable="true" ondragstart="drag(event)" id="s2">If No: Go to Step</div>
+                <div class="part-item static-item" draggable="true" ondragstart="drag(event)" id="s3">Refer to ""</div>
+            </div>
+
+            <span class="section-label">📜 Flow Items (Sorted A-Z)</span>
+            <div id="parts-list"></div>
+        </div>
+
+        <div class="mapping-panel">
+            <strong>3. Visual Builder</strong>
+            <div id="builder-area"></div>
+            <button class="btn-add" onclick="addBlock()">+ Add New Step Block</button>
+            
+            <div style="display:flex; gap:10px;">
+                <button onclick="generateOutput()" style="background:#28a745; color:white; flex:1;">GENERATE HTML</button>
+                <button onclick="copyToClipboard()" style="background:#17a2b8; color:white;">COPY CODE</button>
+                <button onclick="location.reload()" style="background:#d63031; color:white;">RESET</button>
+            </div>
+            
+            <textarea id="final-html" style="width:100%; height:100px; margin-top:15px; font-family:monospace;" readonly></textarea>
+            <div id="preview-area" style="margin-top:10px; border:1px solid #eee; padding:15px; background:white;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let blockCount = 0;
+    for(let i=0; i<5; i++) addBlock();
+
+    function importJson() {
+        const raw = document.getElementById('json-paster').value.trim();
+        if(!raw) return alert("Please paste JSON first.");
+
+        try {
+            const data = JSON.parse(raw);
+            const keyName = "basic";
+            let tempArray = [];
+            
+            const targetArray = data.shapes || data.nodes || (Array.isArray(data) ? data : []);
+
+            targetArray.forEach(obj => {
+                let value = obj?.[keyName];
+                if (value && value.text) {
+                    let text = value.text;
+                    
+                    // 1. Remove ALL asterisks (*)
+                    text = text.replace(/\*/g, "");
+
+                    // 2. Remove existing "1: ", "2: ", "1. ", etc. from the start of the string
+                    // Regex: Look for numbers at the start followed by colon or dot and space
+                    text = text.replace(/^\d+[:：.\s]+/, "");
+
+                    text = text.trim();
+                    if (text !== "") tempArray.push(text);
+                }
+            });
+
+            // 3. Sort Alphabetically (A-Z)
+            tempArray.sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+
+            // 4. Render Dynamic Cards
+            const list = document.getElementById('parts-list');
+            list.innerHTML = "";
+            
+            tempArray.forEach((text, i) => {
+                const div = document.createElement('div');
+                div.className = 'part-item';
+                div.draggable = true;
+                div.id = `card-${i}`;
+                // Apply NEW numbering
+                div.innerText = `${i + 1}: ${text}`;
+                
+                div.ondragstart = drag;
+                list.appendChild(div);
+            });
+
+            alert(`Success! Processed ${tempArray.length} items.`);
+        } catch (e) {
+            alert("Error: Invalid JSON format.");
+        }
+    }
+
+    function addBlock() {
+        blockCount++;
+        const div = document.createElement('div');
+        div.className = 'step-block';
+        div.innerHTML = `
+            <strong>STEP BLOCK ${blockCount}</strong>
+            <div class="slot" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="clearSlot(this)" data-type="h3"><span class="label">H3</span> Drop Title</div>
+            <div class="slot" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="clearSlot(this)" data-type="p"><span class="label">P1</span> Drop Description</div>
+            <div class="slot" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="clearSlot(this)" data-type="p"><span class="label">P2</span> Drop Description</div>
+        `;
+        document.getElementById('builder-area').appendChild(div);
+    }
+
+    function drag(e) {
+        e.dataTransfer.setData("text", e.target.innerText);
+        e.dataTransfer.setData("sourceId", e.target.id);
+    }
+
+    function allowDrop(e) { e.preventDefault(); }
+
+    function drop(e) {
+        e.preventDefault();
+        const slot = e.target.closest('.slot');
+        const content = e.dataTransfer.getData("text");
+        const sourceId = e.dataTransfer.getData("sourceId");
+
+        if (slot) {
+            slot.innerHTML = `<span class="label">${slot.dataset.type.toUpperCase()}</span> ${content}`;
+            slot.classList.add('filled');
+            slot.dataset.content = content;
+            
+            // Only hide if it's not a static item
+            const original = document.getElementById(sourceId);
+            if(original && !original.classList.contains('static-item')) {
+                original.style.display = "none"; 
+            }
+        }
+    }
+
+    function clearSlot(slot) {
+        if(!slot.classList.contains('filled')) return;
+        slot.innerHTML = `<span class="label">${slot.dataset.type.toUpperCase()}</span>`;
+        slot.classList.remove('filled');
+        delete slot.dataset.content;
+        // In a real app, you'd un-hide the original card here, but reload is safer for simple versions
+    }
+
+    function generateOutput() {
+        const blocks = document.querySelectorAll('.step-block');
+        let html = "";
+        let stepCount = 1;
+
+        blocks.forEach(block => {
+            const h3Slot = block.querySelector('[data-type="h3"]');
+            if (h3Slot.dataset.content) {
+                // Remove the "1: " prefix from the generated HTML title
+                let titleText = h3Slot.dataset.content.replace(/^\d+[:：]\s*/, "");
+                html += `<h3>Step ${stepCount}: ${titleText}</h3>\n`;
+                
+                block.querySelectorAll('[data-type="p"]').forEach(pSlot => {
+                    if (pSlot.dataset.content) {
+                        // Remove "1: " prefix from paragraph text too
+                        let pText = pSlot.dataset.content.replace(/^\d+[:：]\s*/, "");
+                        html += `<p>${pText}</p>\n`;
+                    }
+                });
+                html += `\n`;
+                stepCount++;
+            }
+        });
+
+        document.getElementById('final-html').value = html.trim();
+        document.getElementById('preview-area').innerHTML = html || "<p>Preview...</p>";
+    }
+
+    function copyToClipboard() {
+        const area = document.getElementById('final-html'); area.select();
+        document.execCommand('copy'); alert("HTML Copied!");
+    }
+</script>
+</body>
+</html>
