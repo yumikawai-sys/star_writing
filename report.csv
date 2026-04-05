@@ -1,0 +1,11 @@
+Contact_ID,Date,Agent_Time,Skill,Note
+201,04/01/2026,750,Technical_Support,Agent advised the customer to restart the router. After that the agent updated the connection settings and resolved the issue. Customer was pleased.
+202,04/03/2026,300,Billing,Password has been changed to a new one which is different from the original 098U7rgys@@
+203,04/01/2026,900,Sales,Agent asked the credit card number which was 4111-1234-5678-9012 to investigate the reason why the payment didn't go through. It turned out the card had been expired
+204,04/10/2026,1200,General,Resoleved but no detail was shared.
+205,04/11/2026,120,Technical_Support,Agent advised the customer to call 902-123-5678 and cvv is 745. In addition PIN had been updated to 8874
+206,04/01/2026,600,Billing,The customer completed the Verification process by providing the code 1234.
+207,04/13/2026,450,Complaints,The customer was very angry and shouted Jesus Christ during the call.
+208,04/04/2026,300,Sales,
+209,04/04/2026,0,General,
+210,04/05/2026,180,Technical_Support,Everything is fine. New password was set to be 4678 because the customer forgot the old one.
