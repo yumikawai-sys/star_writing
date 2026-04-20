@@ -1,0 +1,58 @@
+import spacy
+import pandas as pd
+
+# 1. ローカルモデルの読み込み
+model_path = "C:/nlp_models/ja_core_news_lg" # 環境Bに合わせて変更してください
+nlp = spacy.load(model_path)
+
+# 2. ゴールデンサンプルの準備
+df_golden = pd.read_csv("golden_samples.csv")
+# 各インテントごとにサンプルをnlpオブジェクト化してリスト化しておく
+golden_data = {}
+for intent, group in df_golden.groupby("intent"):
+    golden_data[intent] = [nlp(utt) for utt in group["utterance"]]
+
+# 3. 検証対象CSVの読み込み
+df_target = pd.read_csv("target_data.csv")
+
+# 4. 判定処理
+results = []
+
+for idx, row in df_target.iterrows():
+    utt_doc = nlp(row["utterance"])
+    
+    intent_scores = []
+    
+    # 全インテントとの類似度を計算
+    for intent, samples in golden_data.items():
+        # 各サンプルとの類似度の最大値をそのインテントのスコアとする
+        max_sim = max([utt_doc.similarity(s) for s in samples])
+        intent_scores.append({"intent": intent, "score": max_sim})
+    
+    # スコアが高い順にソート
+    intent_scores.sort(key=lambda x: x["score"], reverse=True)
+    
+    best_match = intent_scores[0]
+    
+    # 判定ロジック
+    if best_match["score"] >= 0.90:
+        results.append({
+            "utterance": row["utterance"],
+            "result": "OK",
+            "assigned_intent": best_match["intent"],
+            "score": best_match["score"]
+        })
+    else:
+        # 閾値未満ならTop 3を提示
+        top3 = intent_scores[:3]
+        results.append({
+            "utterance": row["utterance"],
+            "result": "Review Required",
+            "assigned_intent": "None",
+            "suggestions": ", ".join([f"{item['intent']}({item['score']:.2f})" for item in top3])
+        })
+
+# 5. 結果の保存
+df_results = pd.DataFrame(results)
+df_results.to_csv("validation_results.csv", index=False)
+print("検証完了！validation_results.csvを確認してください。")
