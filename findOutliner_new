@@ -1,0 +1,79 @@
+import pandas as pd
+import numpy as np
+import spacy
+from sklearn.metrics.pairwise import cosine_similarity
+
+# --- 設定 ---
+INPUT_FILE = "input.csv"          # 分析したい（ノイズ混じりの）ファイル
+REFERENCE_FILE = "reference.csv"  # 10個ずつ用意した正しいデータのファイル
+OUTPUT_FILE = "intent_analysis_clean.csv"
+
+# spaCy 英語モデルのロード
+print("Loading spaCy English model...")
+nlp = spacy.load("en_core_web_lg")
+
+def get_vector(text):
+    """テキストをベクトル化"""
+    doc = nlp(str(text) if pd.notnull(text) else "")
+    return doc.vector
+
+def main():
+    try:
+        # 1. 参照データ（各10個の標準文）を読み込み、中心点を計算
+        print(f"Calculating 'Golden Centroids' from {REFERENCE_FILE}...")
+        ref_df = pd.read_csv(REFERENCE_FILE)
+        
+        # 参照データの列名は intent, utterance と想定
+        unique_intents = ref_df['intent'].unique()
+        intent_centroids = []
+        valid_intents = []
+
+        for intent in unique_intents:
+            subset_texts = ref_df[ref_df['intent'] == intent]['utterance'].tolist()
+            # 参照データからベクトルを作成して平均をとる
+            vectors = [get_vector(t) for t in subset_texts]
+            centroid = np.mean(vectors, axis=0)
+            intent_centroids.append(centroid)
+            valid_intents.append(intent)
+
+        intent_centroids = np.array(intent_centroids)
+
+        # 2. 分析対象のデータを読み込み
+        print(f"Analyzing target data from {INPUT_FILE}...")
+        df = pd.read_csv(INPUT_FILE)
+        u_col = df.columns[2]  # Utterance (C列)
+        
+        all_utterances = df[u_col].tolist()
+        utterance_vectors = np.array([get_vector(t) for t in all_utterances])
+
+        # 3. 照合（ターゲットデータ vs 黄金の中心点）
+        sim_matrix = cosine_similarity(utterance_vectors, intent_centroids)
+
+        # 4. 上位3つのIntentを抽出
+        top1_list, top2_list, top3_list = [], [], []
+
+        for scores in sim_matrix:
+            top_indices = np.argsort(scores)[::-1][:3]
+            
+            t1 = valid_intents[top_indices[0]]
+            t2 = valid_intents[top_indices[1]] if len(top_indices) > 1 else ""
+            t3 = valid_intents[top_indices[2]] if len(top_indices) > 2 else ""
+            
+            top1_list.append(t1)
+            top2_list.append(t2)
+            top3_list.append(t3)
+
+        # 結果を結合
+        df['top1'] = top1_list
+        df['top2'] = top2_list
+        df['top3'] = top3_list
+
+        # 保存
+        df.to_csv(OUTPUT_FILE, index=False, encoding='utf-8-sig')
+        print(f"Success! Analysis results saved to '{OUTPUT_FILE}'.")
+
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    main()
